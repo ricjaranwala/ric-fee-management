@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RIC Fee Management - Students</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="gdrive-data.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
+        .modal { display: none; }
+        .modal.active { display: flex; }
+        .scrollbar-wide { scrollbar-width: 16px; }
+        .scrollbar-wide::-webkit-scrollbar { width: 16px; }
+        .scrollbar-wide::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+        .remove-installment-btn { color: #ef4444; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-emerald-50 min-h-screen flex">
+
+    <!-- Sidebar (as before, unchanged) -->
+    <aside class="bg-white w-64 min-h-screen shadow-lg flex flex-col py-8 px-6">
+        <div class="flex items-center gap-3 mb-10">
+            <img src="pics/logo.jpg" alt="RIC Logo" class="h-10 w-10 rounded-full shadow-sm border border-blue-200" />
+            <span class="text-xl font-extrabold text-blue-700 tracking-tight">RIC Admin</span>
+        </div>
+        <nav class="flex flex-col gap-3 font-medium">
+            <a href="dashboard.html" class="flex items-center gap-2 px-3 py-2 rounded-lg transition">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="14" height="14" rx="3"/></svg>
+                Dashboard
+            </a>
+            <a href="students.html" class="flex items-center gap-2 px-3 py-2 rounded-lg transition text-blue-700 bg-blue-100 font-semibold">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 6V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><rect x="2" y="6" width="16" height="12" rx="2"/><path d="M12 10v4"/></svg>
+                Students
+            </a>
+            <a href="payments.html" class="flex items-center gap-2 px-3 py-2 rounded-lg transition">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="8"/><path d="M7 10l2 2 4-4"/></svg>
+                Payments
+            </a>
+            <a href="financial.html" class="flex items-center gap-2 px-3 py-2 rounded-lg transition">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" class="mr-2"><rect x="4" y="4" width="12" height="12" rx="3"/><path d="M8 8h8M8 12h6"/></svg>
+                Financial
+            </a>
+            <a href="reports.html" class="flex items-center gap-2 px-3 py-2 rounded-lg transition">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 12h8"/><path d="M8 16h8"/></svg>
+                Reports
+            </a>
+            <a href="index.html" class="flex items-center gap-2 text-gray-700 hover:bg-red-50 px-3 py-2 rounded-lg transition mt-10">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>
+                Logout
+            </a>
+        </nav>
+    </aside>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const path = location.pathname.split('/').pop();
+        document.querySelectorAll('aside a').forEach(link => {
+            link.classList.remove('text-blue-700','bg-blue-100','font-semibold');
+            link.classList.add('text-gray-700','hover:bg-blue-50','transition');
+            if (link.getAttribute('href') === path && path !== "#") {
+                link.classList.add('text-blue-700','bg-blue-100','font-semibold');
+                link.classList.remove('text-gray-700','hover:bg-blue-50','transition');
+            }
+        });
+    });
+    </script>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-10">
+        <div id="gdrive-auth-section" class="mb-6">
+            <button id="gdrive-signin-btn" class="bg-blue-600 text-white px-4 py-2 rounded">Sign in with Google</button>
+            <button id="gdrive-signout-btn" class="bg-gray-600 text-white px-4 py-2 rounded hidden">Sign Out</button>
+            <span id="gdrive-user-info" class="text-gray-700 ml-3"></span>
+        </div>
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-extrabold text-gray-900">Students</h1>
+                <p class="text-gray-600 text-sm mt-1">Add a new student with detailed semester configuration.</p>
+            </div>
+            <button id="openAddModal" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow flex items-center gap-2 transition">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6v6m0 0v6m6-6H6"/></svg>
+                Add Student
+            </button>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="mb-4">
+            <input type="text" id="searchInput" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="Search by Name, Father Name, Unique ID, University ID, Email, or Phone Number...">
+        </div>
+
+        <!-- ADDED STUDENTS TABLE -->
+        <div id="studentsHistory" class="mb-8">
+            <h2 class="text-xl font-bold text-blue-700 mb-4">ADDED STUDENTS</h2>
+            <div class="bg-white rounded-xl shadow p-6 overflow-x-auto">
+                <table class="min-w-full text-sm" id="studentsTable">
+                    <thead>
+                        <tr>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Unique ID</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">University ID</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">First Name</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Last Name</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Father/Guardian Name</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Contact</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Course/Program (Univ.)</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Course/Program (College)</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Intake</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Year</th>
+                            <th class="py-2 px-4 text-left text-gray-600 font-semibold">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTbody">
+                        <!-- Student rows will be appended by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add/Edit Student Modal -->
+    <div id="addModal" class="modal fixed inset-0 bg-black bg-opacity-30 justify-center items-center z-50">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-3xl p-6 relative overflow-y-auto max-h-[97vh] scrollbar-wide">
+            <button id="closeAddModal" class="absolute top-4 right-4 text-gray-400 hover:text-red-500 text-3xl font-bold">&times;</button>
+            <h2 id="modalTitle" class="text-xl font-bold mb-4 text-blue-700">Add New Student</h2>
+            <form id="addStudentForm" class="space-y-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Campus Name</label>
+                        <input type="text" id="campusName" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">University ID</label>
+                        <input type="text" id="universityId" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="Enter University ID" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Unique ID</label>
+                        <input type="text" id="uniqueId" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-100" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                        <input type="text" id="studentFirstName" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                        <input type="text" id="studentLastName" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                        <input type="date" id="studentDOB" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                        <div class="flex gap-4 mt-1">
+                            <label class="flex items-center gap-2"><input type="checkbox" name="gender" value="Male" id="genderMale"> Male</label>
+                            <label class="flex items-center gap-2"><input type="checkbox" name="gender" value="Female" id="genderFemale"> Female</label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Student CNIC <span class="text-gray-400">(Optional)</span></label>
+                        <input type="text" id="studentCNIC" class="w-full p-3 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Father/Guardian Name</label>
+                        <input type="text" id="fatherName" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Father/Guardian CNIC</label>
+                        <input type="text" id="fatherCNIC" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Father/Guardian Contact Number</label>
+                        <input type="text" id="fatherContact" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Emergency Number</label>
+                        <input type="text" id="emergencyNumber" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Present Address</label>
+                        <textarea id="presentAddress" class="w-full p-3 border border-gray-300 rounded-lg" required></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
+                        <input type="text" id="city" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">District</label>
+                        <input type="text" id="district" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Province</label>
+                        <input type="text" id="province" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Marital Status</label>
+                        <div class="flex gap-4 mt-1">
+                            <label class="flex items-center gap-2"><input type="checkbox" name="marital" value="Single" id="maritalSingle"> Single</label>
+                            <label class="flex items-center gap-2"><input type="checkbox" name="marital" value="Married" id="maritalMarried"> Married</label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Religion</label>
+                        <input type="text" id="religion" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
+                        <input type="text" id="nationality" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Course/Program For University</label>
+                        <select id="studentCourseUniversity" class="w-full p-3 border border-gray-300 rounded-lg">
+                            <option value="">-- Select Course --</option>
+                            <option>Accounting & Finance</option>
+                            <option>Commerce</option>
+                            <option>Business Management</option>
+                            <option>Sales & Marketing</option>
+                            <option>IT Management</option>
+                            <option>Science ( Zoology & Botany )</option>
+                            <option>Science ( Zoology & Chemistry )</option>
+                            <option>Science ( Mathematics & Physics )</option>
+                            <option>Psychology</option>
+                            <option>English</option>
+                            <option>Artificial Intelligence</option>
+                            <option>Medical Lab Technology</option>
+                            <option>Medical Imaging Technology</option>
+                            <option>Operation Theater Technology</option>
+                            <option>Computer Systems</option>
+                            <option>Computer Graphics</option>
+                            <option>Data Science</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Course/Program For College</label>
+                        <select id="studentCourseCollege" class="w-full p-3 border border-gray-300 rounded-lg">
+                            <option value="">-- Select Course --</option>
+                            <option>FSC ( Pre-Medical )</option>
+                            <option>FSC ( Pre-Engineering )</option>
+                            <option>F.A ( Humanities )</option>
+                            <option>F.A ( Arts )</option>
+                            <option>I.COM ( Commerce )</option>
+                            <option>ICS ( Computer Science )</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Intake Session</label>
+                        <div class="flex gap-4 mt-1">
+                            <label class="flex items-center gap-2"><input type="checkbox" name="intakeSession" value="Fall" id="intakeFall"> Fall</label>
+                            <label class="flex items-center gap-2"><input type="checkbox" name="intakeSession" value="Spring" id="intakeSpring"> Spring</label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                        <input type="number" id="admissionYear" min="2000" max="2099" class="w-full p-3 border border-gray-300 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Transfer/Migration Student</label>
+                        <div class="flex gap-4 mt-1">
+                            <label class="flex items-center gap-2"><input type="checkbox" name="transferStudent" value="Yes" id="transferYes"> Yes</label>
+                            <label class="flex items-center gap-2"><input type="checkbox" name="transferStudent" value="No" id="transferNo"> No</label>
+                        </div>
+                    </div>
+                </div>
+                <!-- Academic Record Section -->
+                <div class="mt-6">
+                    <label class="block font-bold text-blue-900 mb-2">Academic Record</label>
+                    <div class="flex gap-6 mb-4">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="academicUniversity" class="form-checkbox">
+                            <span>University</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="academicCollege" class="form-checkbox">
+                            <span>College</span>
+                        </label>
+                    </div>
+                    <div id="universityFields" class="hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Certificate</label>
+                                <select id="uniCertificate" class="w-full p-2 border border-gray-300 rounded-lg">
+                                    <option value="">-- Select --</option>
+                                    <option value="F.A">F.A</option>
+                                    <option value="F.Sc">F.Sc</option>
+                                    <option value="I.com">I.com</option>
+                                    <option value="ICS">ICS</option>
+                                    <option value="A-Level">A-Level</option>
+                                    <option value="DAE">DAE</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Year of Passing</label>
+                                <input type="text" id="uniYear" class="w-full p-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Board Roll #</label>
+                                <input type="text" id="uniRoll" class="w-full p-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Marks Obtained / O-Level Avg %</label>
+                                <input type="text" id="uniMarks" class="w-full p-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Board</label>
+                                <input type="text" id="uniBoard" class="w-full p-2 border border-gray-300 rounded-lg">
+                            </div>
+                        </div>
+                    </div>
+                    <div id="collegeFields" class="hidden mt-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Certificate</label>
+                                <select id="colCertificate" class="w-full p-2 border border-gray-300 rounded-lg">
+                                    <option value="">-- Select --</option>
+                                    <option value="Matric">Matric</option>
+                                    <option value="O-Level">O-Level</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Year of Passing</label>
+                                <input type="text" id="colYear" class="w-full p-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Board Roll #</label>
+                                <input type="text" id="colRoll" class="w-full p-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Marks Obtained / O-Level Avg %</label>
+                                <input type="text" id="colMarks" class="w-full p-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Board</label>
+                                <input type="text" id="colBoard" class="w-full p-2 border border-gray-300 rounded-lg">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Semester/Fine fields (from original) -->
+                <div class="flex flex-col md:flex-row md:items-end gap-4 mt-8">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 mt-2">Number of Semesters</label>
+                        <select id="numSemesters" class="w-32 p-2 border border-gray-300 rounded-lg"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-blue-900 mb-1 mt-2">Daily Fine (PKR)</label>
+                        <input type="number" min="0" id="finePerDay" class="w-32 p-2 border border-blue-400 rounded-lg" placeholder="Amount" required>
+                        <span class="text-gray-700 text-xs block mt-1">This fine will be added daily after due date.</span>
+                    </div>
+                </div>
+                <div id="semesterConfigs" class="mt-4 space-y-4"></div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow mt-4"><span id="modalSubmitBtn">Add Student</span></button>
+            </form>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+// --- Google Drive Auth UI Logic ---
+document.getElementById('gdrive-signin-btn').onclick = gDriveSignIn;
+document.getElementById('gdrive-signout-btn').onclick = gDriveSignOut;
+
+window.onGDriveSignIn = function() {
+    document.getElementById('gdrive-signin-btn').classList.add('hidden');
+    document.getElementById('gdrive-signout-btn').classList.remove('hidden');
+    document.getElementById('gdrive-user-info').textContent = gDriveUser ? gDriveUser.getEmail() : '';
+    gDriveAppLoadAll();
+};
+window.onGDriveSignOut = function() {
+    document.getElementById('gdrive-signin-btn').classList.remove('hidden');
+    document.getElementById('gdrive-signout-btn').classList.add('hidden');
+    document.getElementById('gdrive-user-info').textContent = '';
+    renderStudents([]);
+};
+
+let lastUniqueIdNum = 0;
+let editIndex = null;
+
+function getNextUniqueId() {
+    if (!gAppData.students) return "RICFSB1";
+    let maxId = 0;
+    gAppData.students.forEach(st => {
+        if (st.uniqueId && st.uniqueId.startsWith("RICFSB")) {
+            const n = parseInt(st.uniqueId.substring(6)) || 0;
+            if (n > maxId) maxId = n;
+        }
+    });
+    return "RICFSB" + (maxId + 1);
+}
+
+function createSemesterConfig(semNum) {
+    return `
+    <fieldset class="border rounded-lg border-blue-200 bg-blue-50 px-4 py-2">
+        <legend class="font-bold text-blue-800">Semester ${semNum}</legend>
+        <div class="flex flex-wrap gap-4 items-center mb-2">
+            <div>
+                <label class="block text-xs font-semibold mb-1">Fee (PKR)</label>
+                <input type="number" min="0" id="semFee${semNum}" name="semFee${semNum}" class="p-2 border border-gray-300 rounded" required>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold mb-1">Due Date</label>
+                <input type="date" id="semDue${semNum}" name="semDue${semNum}" class="p-2 border border-gray-300 rounded" required>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="semScholarship${semNum}" name="semScholarship${semNum}" class="scholarship-toggle">
+                <label for="semScholarship${semNum}" class="text-xs font-semibold">Scholarship?</label>
+            </div>
+        </div>
+        <div id="scholarshipFields${semNum}" style="display:none;" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+            <div>
+                <label class="block text-xs font-semibold mb-1">Scholarship Name</label>
+                <input type="text" id="scholarshipName${semNum}" name="scholarshipName${semNum}" class="p-2 border border-gray-300 rounded">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold mb-1">Scholarship %</label>
+                <input type="number" min="0" max="100" id="scholarshipPercent${semNum}" name="scholarshipPercent${semNum}" class="p-2 border border-gray-300 rounded" placeholder="0-100">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold mb-1">Scholarship Amount (PKR)</label>
+                <input type="number" id="scholarshipAmount${semNum}" name="scholarshipAmount${semNum}" class="p-2 border border-gray-300 rounded bg-gray-100" readonly>
+            </div>
+        </div>
+        <div class="mt-4">
+            <label class="block text-xs font-semibold mb-1">Installments for Semester ${semNum}</label>
+            <div id="installmentFields${semNum}" class="space-y-2"></div>
+            <button type="button" id="addInstallmentBtn${semNum}" class="mt-2 px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded transition">+ Add Installment</button>
+        </div>
+    </fieldset>
+    `;
+}
+
+function createInstallmentField(semNum, instNum) {
+    return `
+    <div class="flex flex-wrap gap-2 items-center" id="installmentRow${semNum}_${instNum}">
+        <div>
+            <label class="block text-xs mb-1">Installment ${instNum} Amount</label>
+            <input type="number" min="0" id="instAmount${semNum}_${instNum}" class="p-1 border border-gray-300 rounded w-24">
+        </div>
+        <div>
+            <label class="block text-xs mb-1">Due Date</label>
+            <input type="date" id="instDue${semNum}_${instNum}" class="p-1 border border-gray-300 rounded w-36">
+        </div>
+        <span class="remove-installment-btn ml-2" title="Remove Installment" onclick="removeInstallmentField(${semNum},${instNum})">✕</span>
+    </div>
+    `;
+}
+
+document.getElementById('academicUniversity').addEventListener('change', function() {
+  document.getElementById('universityFields').classList.toggle('hidden', !this.checked);
+});
+document.getElementById('academicCollege').addEventListener('change', function() {
+  document.getElementById('collegeFields').classList.toggle('hidden', !this.checked);
+});
+
+function onlyOneCheckbox(group, checkedId) {
+    group.forEach(id => {
+        if(id !== checkedId) document.getElementById(id).checked = false;
+    });
+}
+
+document.getElementById('genderMale').addEventListener('change', function() {
+    if(this.checked) onlyOneCheckbox(['genderMale', 'genderFemale'], 'genderMale');
+});
+document.getElementById('genderFemale').addEventListener('change', function() {
+    if(this.checked) onlyOneCheckbox(['genderMale', 'genderFemale'], 'genderFemale');
+});
+document.getElementById('maritalSingle').addEventListener('change', function() {
+    if(this.checked) onlyOneCheckbox(['maritalSingle', 'maritalMarried'], 'maritalSingle');
+});
+document.getElementById('maritalMarried').addEventListener('change', function() {
+    if(this.checked) onlyOneCheckbox(['maritalSingle', 'maritalMarried'], 'maritalMarried');
+});
+document.getElementById('intakeFall').addEventListener('change', function() {
+    if(this.checked) onlyOneCheckbox(['intakeFall', 'intakeSpring'], 'intakeFall');
+});
+document.getElementById('intakeSpring').addEventListener('change', function() {
+    if(this.checked) onlyOneCheckbox(['intakeFall', 'intakeSpring'], 'intakeSpring');
+});
+document.getElementById('transferYes').addEventListener('change', function() {
+    if(this.checked) onlyOneCheckbox(['transferYes', 'transferNo'], 'transferYes');
+});
+document.getElementById('transferNo').addEventListener('change', function() {
+    if(this.checked) onlyOneCheckbox(['transferYes', 'transferNo'], 'transferNo');
+});
+
+function renderSemesterConfigs(num, existingDetails) {
+    const container = document.getElementById('semesterConfigs');
+    container.innerHTML = '';
+    for(let i = 1; i <= num; i++) {
+        container.innerHTML += createSemesterConfig(i);
+    }
+    for(let i = 1; i <= num; i++) {
+        const scholarshipCheckbox = document.getElementById(`semScholarship${i}`);
+        const scholarshipFields = document.getElementById(`scholarshipFields${i}`);
+        const feeField = document.getElementById(`semFee${i}`);
+        const percentField = document.getElementById(`scholarshipPercent${i}`);
+        const amountField = document.getElementById(`scholarshipAmount${i}`);
+        scholarshipCheckbox.addEventListener('change', function() {
+            scholarshipFields.style.display = this.checked ? 'grid' : 'none';
+        });
+        function updateScholarshipAmount() {
+            const fee = parseFloat(feeField.value) || 0;
+            const percent = parseFloat(percentField.value) || 0;
+            amountField.value = (fee * (percent/100)).toFixed(2);
+        }
+        percentField.addEventListener('input', updateScholarshipAmount);
+        feeField.addEventListener('input', updateScholarshipAmount);
+
+        let instCount = 0;
+        const installmentFields = document.getElementById(`installmentFields${i}`);
+        installmentFields.innerHTML = "";
+        document.getElementById(`addInstallmentBtn${i}`).addEventListener('click', function() {
+            instCount = countCurrentInstallments(i) + 1;
+            installmentFields.innerHTML += createInstallmentField(i, instCount);
+        });
+
+        if (existingDetails && existingDetails[i-1]) {
+            feeField.value = existingDetails[i-1].fee || '';
+            document.getElementById(`semDue${i}`).value = existingDetails[i-1].due || '';
+            if (existingDetails[i-1].scholarship) {
+                scholarshipCheckbox.checked = true;
+                scholarshipFields.style.display = 'grid';
+                document.getElementById(`scholarshipName${i}`).value = existingDetails[i-1].scholarship.name || '';
+                document.getElementById(`scholarshipPercent${i}`).value = existingDetails[i-1].scholarship.percent || '';
+                document.getElementById(`scholarshipAmount${i}`).value = existingDetails[i-1].scholarship.amount || '';
+            }
+            if (existingDetails[i-1].installments && existingDetails[i-1].installments.length > 0) {
+                for(let j = 0; j < existingDetails[i-1].installments.length; j++) {
+                    installmentFields.innerHTML += createInstallmentField(i, j+1);
+                    document.getElementById(`instAmount${i}_${j+1}`).value = existingDetails[i-1].installments[j].amount || '';
+                    document.getElementById(`instDue${i}_${j+1}`).value = existingDetails[i-1].installments[j].due || '';
+                }
+            }
+        }
+    }
+}
+
+function countCurrentInstallments(semNum) {
+    const parent = document.getElementById(`installmentFields${semNum}`);
+    return parent.querySelectorAll('[id^="installmentRow' + semNum + '_"]').length;
+}
+
+window.removeInstallmentField = function(semNum, instNum) {
+    const row = document.getElementById(`installmentRow${semNum}_${instNum}`);
+    if(row) row.remove();
+}
+
+function renderSemesterOptions() {
+    const sel = document.getElementById('numSemesters');
+    sel.innerHTML = '';
+    for(let i=1; i<=8; i++) sel.innerHTML += `<option value="${i}">${i}</option>`;
+    sel.value = "1";
+    renderSemesterConfigs(1);
+}
+
+function renderStudents(list) {
+    const tbody = document.getElementById('studentsTbody');
+    tbody.innerHTML = '';
+    (list || []).forEach((student, idx) => {
+        tbody.innerHTML += `
+            <tr class="border-t">
+                <td class="py-2 px-4">${student.uniqueId}</td>
+                <td class="py-2 px-4">${student.universityId || ''}</td>
+                <td class="py-2 px-4">${student.firstName}</td>
+                <td class="py-2 px-4">${student.lastName}</td>
+                <td class="py-2 px-4">${student.father}</td>
+                <td class="py-2 px-4">${student.fatherContact}</td>
+                <td class="py-2 px-4">${student.courseUniversity || ''}</td>
+                <td class="py-2 px-4">${student.courseCollege || ''}</td>
+                <td class="py-2 px-4">${student.intakeSession}</td>
+                <td class="py-2 px-4">${student.admissionYear}</td>
+                <td class="py-2 px-4">
+                    <button onclick="editStudent(${idx})" class="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs">Edit</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+window.editStudent = function(index) {
+    editIndex = index;
+    const student = gAppData.students[index];
+    document.getElementById('modalTitle').textContent = "Edit Student";
+    document.getElementById('modalSubmitBtn').textContent = "Update Student";
+    document.getElementById('campusName').value = student.campusName;
+    document.getElementById('universityId').value = student.universityId || "";
+    document.getElementById('uniqueId').value = student.uniqueId;
+    document.getElementById('studentFirstName').value = student.firstName;
+    document.getElementById('studentLastName').value = student.lastName;
+    document.getElementById('studentDOB').value = student.dob;
+    document.getElementById('genderMale').checked = (student.gender === "Male");
+    document.getElementById('genderFemale').checked = (student.gender === "Female");
+    document.getElementById('studentCNIC').value = student.cnic;
+    document.getElementById('fatherName').value = student.father;
+    document.getElementById('fatherCNIC').value = student.fatherCNIC;
+    document.getElementById('fatherContact').value = student.fatherContact;
+    document.getElementById('emergencyNumber').value = student.emergencyNumber;
+    document.getElementById('presentAddress').value = student.presentAddress;
+    document.getElementById('city').value = student.city;
+    document.getElementById('district').value = student.district;
+    document.getElementById('province').value = student.province;
+    document.getElementById('maritalSingle').checked = (student.maritalStatus === "Single");
+    document.getElementById('maritalMarried').checked = (student.maritalStatus === "Married");
+    document.getElementById('religion').value = student.religion;
+    document.getElementById('nationality').value = student.nationality;
+    document.getElementById('studentCourseUniversity').value = student.courseUniversity || "";
+    document.getElementById('studentCourseCollege').value = student.courseCollege || "";
+    document.getElementById('intakeFall').checked = (student.intakeSession === "Fall");
+    document.getElementById('intakeSpring').checked = (student.intakeSession === "Spring");
+    document.getElementById('admissionYear').value = student.admissionYear;
+    document.getElementById('transferYes').checked = (student.transferStudent === "Yes");
+    document.getElementById('transferNo').checked = (student.transferStudent === "No");
+
+    document.getElementById('academicUniversity').checked = !!student.academicRecord?.university;
+    document.getElementById('academicCollege').checked = !!student.academicRecord?.college;
+    document.getElementById('universityFields').classList.toggle('hidden', !student.academicRecord?.university);
+    document.getElementById('collegeFields').classList.toggle('hidden', !student.academicRecord?.college);
+
+    if(student.academicRecord?.university){
+        document.getElementById('uniCertificate').value = student.academicRecord.university.certificate || "";
+        document.getElementById('uniYear').value = student.academicRecord.university.year || "";
+        document.getElementById('uniRoll').value = student.academicRecord.university.roll || "";
+        document.getElementById('uniMarks').value = student.academicRecord.university.marks || "";
+        document.getElementById('uniBoard').value = student.academicRecord.university.board || "";
+    }
+    if(student.academicRecord?.college){
+        document.getElementById('colCertificate').value = student.academicRecord.college.certificate || "";
+        document.getElementById('colYear').value = student.academicRecord.college.year || "";
+        document.getElementById('colRoll').value = student.academicRecord.college.roll || "";
+        document.getElementById('colMarks').value = student.academicRecord.college.marks || "";
+        document.getElementById('colBoard').value = student.academicRecord.college.board || "";
+    }
+
+    document.getElementById('finePerDay').value = student.finePerDay;
+    document.getElementById('numSemesters').value = student.semesterDetails.length;
+    renderSemesterConfigs(student.semesterDetails.length, student.semesterDetails);
+    document.getElementById('addModal').classList.add('active');
+};
+
+function onGDriveStudentsLoaded() {
+    renderSemesterOptions();
+    // Set initial unique id
+    document.getElementById('uniqueId').value = getNextUniqueId();
+    renderStudents(gAppData.students);
+}
+
+// Modal open/close logic
+document.getElementById('openAddModal').onclick = function() {
+    editIndex = null;
+    document.getElementById('addStudentForm').reset();
+    document.getElementById('modalTitle').textContent = "Add New Student";
+    document.getElementById('modalSubmitBtn').textContent = "Add Student";
+    document.getElementById('uniqueId').value = getNextUniqueId();
+    renderSemesterOptions();
+    document.getElementById('universityFields').classList.add('hidden');
+    document.getElementById('collegeFields').classList.add('hidden');
+    document.getElementById('addModal').classList.add('active');
+}
+document.getElementById('closeAddModal').onclick = function() {
+    document.getElementById('addModal').classList.remove('active');
+}
+window.onclick = function(e) {
+    if (e.target === document.getElementById('addModal')) document.getElementById('addModal').classList.remove('active');
+}
+
+document.getElementById('addStudentForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const numSem = parseInt(document.getElementById('numSemesters').value);
+    let semesterDetails = [];
+    for(let i=1; i<=numSem; i++) {
+        const fee = document.getElementById(`semFee${i}`).value;
+        const due = document.getElementById(`semDue${i}`).value;
+        const scholarship = document.getElementById(`semScholarship${i}`).checked;
+        let scholarshipInfo = null;
+        if(scholarship) {
+            scholarshipInfo = {
+                name: document.getElementById(`scholarshipName${i}`).value,
+                percent: document.getElementById(`scholarshipPercent${i}`).value,
+                amount: document.getElementById(`scholarshipAmount${i}`).value
+            };
+        }
+        let installments = [];
+        let instNum = 1;
+        while(true) {
+            const amountEl = document.getElementById(`instAmount${i}_${instNum}`);
+            const dueEl = document.getElementById(`instDue${i}_${instNum}`);
+            if(!amountEl || !dueEl) break;
+            if(amountEl.value || dueEl.value) {
+                installments.push({
+                    amount: amountEl.value,
+                    due: dueEl.value
+                });
+            }
+            instNum++;
+        }
+        semesterDetails.push({
+            fee, due, scholarship: scholarshipInfo, installments
+        });
+    }
+    let academicRecord = {};
+    if(document.getElementById('academicUniversity').checked){
+        academicRecord.university = {
+            certificate: document.getElementById('uniCertificate').value,
+            year: document.getElementById('uniYear').value,
+            roll: document.getElementById('uniRoll').value,
+            marks: document.getElementById('uniMarks').value,
+            board: document.getElementById('uniBoard').value
+        };
+    }
+    if(document.getElementById('academicCollege').checked){
+        academicRecord.college = {
+            certificate: document.getElementById('colCertificate').value,
+            year: document.getElementById('colYear').value,
+            roll: document.getElementById('colRoll').value,
+            marks: document.getElementById('colMarks').value,
+            board: document.getElementById('colBoard').value
+        };
+    }
+    let gender = '';
+    if(document.getElementById('genderMale').checked) gender = "Male";
+    if(document.getElementById('genderFemale').checked) gender = "Female";
+    let maritalStatus = '';
+    if(document.getElementById('maritalSingle').checked) maritalStatus = "Single";
+    if(document.getElementById('maritalMarried').checked) maritalStatus = "Married";
+    let intakeSession = '';
+    if(document.getElementById('intakeFall').checked) intakeSession = "Fall";
+    if(document.getElementById('intakeSpring').checked) intakeSession = "Spring";
+    let transferStudent = '';
+    if(document.getElementById('transferYes').checked) transferStudent = "Yes";
+    if(document.getElementById('transferNo').checked) transferStudent = "No";
+
+    const student = {
+        campusName: document.getElementById('campusName').value,
+        universityId: document.getElementById('universityId').value,
+        uniqueId: document.getElementById('uniqueId').value,
+        firstName: document.getElementById('studentFirstName').value,
+        lastName: document.getElementById('studentLastName').value,
+        dob: document.getElementById('studentDOB').value,
+        gender,
+        cnic: document.getElementById('studentCNIC').value,
+        father: document.getElementById('fatherName').value,
+        fatherCNIC: document.getElementById('fatherCNIC').value,
+        fatherContact: document.getElementById('fatherContact').value,
+        emergencyNumber: document.getElementById('emergencyNumber').value,
+        presentAddress: document.getElementById('presentAddress').value,
+        city: document.getElementById('city').value,
+        district: document.getElementById('district').value,
+        province: document.getElementById('province').value,
+        maritalStatus,
+        religion: document.getElementById('religion').value,
+        nationality: document.getElementById('nationality').value,
+        courseUniversity: document.getElementById('studentCourseUniversity').value,
+        courseCollege: document.getElementById('studentCourseCollege').value,
+        intakeSession,
+        admissionYear: document.getElementById('admissionYear').value,
+        transferStudent,
+        academicRecord,
+        finePerDay: document.getElementById('finePerDay').value,
+        semesterDetails
+    };
+    if (editIndex !== null) {
+        gAppData.students[editIndex] = student;
+    } else {
+        gAppData.students.push(student);
+    }
+    await gDriveAppSaveAll();
+    renderStudents(gAppData.students);
+    document.getElementById('addModal').classList.remove('active');
+    this.reset();
+    document.getElementById('uniqueId').value = getNextUniqueId();
+    renderSemesterOptions();
+    document.getElementById('universityFields').classList.add('hidden');
+    document.getElementById('collegeFields').classList.add('hidden');
+};
+
+document.getElementById('numSemesters').addEventListener('change', function() {
+    renderSemesterConfigs(parseInt(this.value));
+});
+
+document.getElementById('searchInput').addEventListener('input', function() {
+    const query = this.value.trim().toLowerCase();
+    if (!query) {
+        renderStudents(gAppData.students);
+        return;
+    }
+    const filtered = (gAppData.students || []).filter(s =>
+        (s.firstName && s.firstName.toLowerCase().includes(query)) ||
+        (s.lastName && s.lastName.toLowerCase().includes(query)) ||
+        (s.father && s.father.toLowerCase().includes(query)) ||
+        (s.uniqueId && s.uniqueId.toLowerCase().includes(query)) ||
+        (s.universityId && s.universityId.toLowerCase().includes(query)) ||
+        (s.campusName && s.campusName.toLowerCase().includes(query)) ||
+        (s.courseUniversity && s.courseUniversity.toLowerCase().includes(query)) ||
+        (s.courseCollege && s.courseCollege.toLowerCase().includes(query)) ||
+        (s.fatherContact && s.fatherContact.toLowerCase().includes(query))
+    );
+    renderStudents(filtered);
+});
+
+window.onGDriveDataLoaded = function(data) {
+    onGDriveStudentsLoaded();
+};
+gDriveLoadClient();
+
+}); // DOMContentLoaded
+</script>
+</body>
+</html>
